@@ -1,8 +1,0 @@
-Test Installer 4D - Windows
-===========================
-Prérequis : Windows 10/11 x64, .NET Framework 4.8 (inclus dans Windows), Microsoft Edge WebView2 Runtime (déjà présent avec Edge).
-Lancement : double-clic sur TestInstaller4D.exe (demande les droits administrateur : changement de langue Windows, installation 4D).
-Garder les 3 DLL WebView2 à côté de l'exe.
-Connexion : bouton de téléchargement -> page de login product-download.4d.com avec VOTRE compte 4D (le mot de passe n'est jamais enregistré).
-Données : C:\4DQA (téléchargements) + dossiers results\ et proj\ à côté de l'exe.
-Plateforme "macOS ARM/Intel" : génère un kit à copier sur le Mac (ou utilisez directement le dossier macOS de ce zip).
