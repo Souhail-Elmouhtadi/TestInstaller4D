@@ -1,0 +1,650 @@
+=====================================================================
+  TEST INSTALLER 4D – GUIDE D'UTILISATION ET DÉTAIL DES TESTS (macOS)
+=====================================================================
+
+Application : /Applications/Test Installer 4D.app
+Distribution : ~/Downloads/TestInstaller4D.dmg
+Rôle : exécuter automatiquement la checklist de release 4D sur un DMG
+macOS (4D, 4D Server…) et produire un rapport par langue.
+
+
+---------------------------------------------------------------------
+1. AVEC QUOI L'APPLICATION A ÉTÉ CRÉÉE ("vibe codée")
+---------------------------------------------------------------------
+L'application a été générée avec GitHub Copilot (application de bureau,
+agent "Test installer 4D").
+
+Langages utilisés :
+  - Swift / SwiftUI : l'interface graphique (TestInstaller4D.swift :
+    vues ; Theme.swift : couleurs et composants ; Runner.swift :
+    état et actions ; Core.swift : logique testée sans interface ;
+    AppIconArt.swift : dessin vectoriel de l'icône, utilisé à la
+    fois pour AppIcon.icns et pour l'icône du bandeau)
+    et l'analyseur de ReadMe (readme_check.swift, avec PDFKit,
+    NaturalLanguage et le correcteur orthographique de macOS).
+  - Bash : le moteur de la checklist (qa_mac.sh), le téléchargement
+    (download_4d.sh), l'installation (install_4d.sh, dmg_mount.sh),
+    le lancement avec preuve de démarrage (launch_check.sh), les
+    tests d'installation et de lancement (exec_checks.sh, network.sh),
+    le garde réseau du test sans Internet automatique (net_guard.sh,
+    pare-feu pf) et la génération du rapport (rapport_mac.sh, avec
+    awk).
+  - AppleScript (via osascript) : boîtes de dialogue et fenêtres
+    Finder "Lire les informations".
+  - Langage 4D : les petits projets de test lancés dans 4D
+    (méthode qaTest : liste des composants et plugins, tests SVG,
+    Progress, NetKit, AIKit, ViewPro, Internet Commands).
+
+Pas de Python : Python n'est plus livré avec macOS. L'application
+native est petite, universelle (Apple Silicon + Intel) et sans
+installation supplémentaire.
+
+  - about_check.swift : outil qui ouvre la boîte « À propos » de 4D
+    (Accessibilité), la capture et la lit (OCR Vision de macOS), et
+    valide l'alerte Gatekeeper « téléchargée depuis Internet ».
+
+Icône : macOS-app/icon/make_icon.sh compile AppIconArt.swift avec
+icon/make_icon.swift, dessine les 10 tailles (16 à 1024 px ; dessin
+simplifié sous 48 px pour rester lisible) et produit AppIcon.icns
+avec iconutil (+ aperçu icon/AppIcon_1024.png). À relancer après
+toute modification du dessin ; tests/test_icon.sh vérifie que
+AppIcon.icns est à jour.
+
+Construction : macOS-app/build_dmg.sh compile avec swiftc pour
+arm64 et x86_64, fusionne avec lipo et crée le DMG avec hdiutil.
+Les deux outils (about_check, readme_check) sont placés dans
+Test Installer 4D.app/Contents/Helpers et signés avec les
+identifiants com.4d.qa.testinstaller4d.about-check / .readme-check,
+puis l'app est signée (sans --deep : le plugin 4D du kit garde sa
+signature 4D). Identité de signature, dans cet ordre :
+  - SIGN_IDENTITY, sinon « Developer ID Application » : l'app et le
+    DMG sont signés avec (runtime renforcé) ; avec un profil
+    notarytool (créé une fois :
+    xcrun notarytool store-credentials TestInstaller4D
+    --apple-id <id> --team-id <équipe>), le DMG est notarisé et
+    agrafé : plus d'alerte Gatekeeper sur les autres Mac ;
+  - sinon « Apple Development », sinon le certificat local
+    « TestInstaller4D Local Signing » (créé une fois par
+    macOS-app/make_signing_identity.sh, valable sur ce Mac) ;
+  - sinon signature ad hoc, avec un avertissement : macOS identifie
+    alors l'app par son empreinte, chaque reconstruction est une
+    nouvelle app pour les autorisations (à redonner).
+  Le script affiche l'exigence désignée (codesign -d -r-) et
+  vérifie la signature. Sans Developer ID, le DMG contient install.sh.
+
+
+---------------------------------------------------------------------
+2. PEUT-ELLE TOURNER SANS GITHUB COPILOT DESKTOP ?
+---------------------------------------------------------------------
+OUI. L'application est totalement autonome. Copilot a servi
+uniquement à l'écrire ; il n'est ni appelé ni nécessaire à
+l'exécution (aucune IA, aucun compte GitHub requis).
+
+Prérequis sur le Mac de test (panneau « Prérequis » de l'app,
+vérifié au lancement, avec un bouton pour chaque élément manquant) :
+  - macOS 13 ou plus récent.
+  - Accessibilité et Enregistrement de l'écran autorisés pour
+    Test Installer 4D (carte « Autorisations macOS ») : boîte
+    « À propos » et alerte Gatekeeper automatiques. Sans eux, la
+    boîte « À propos » est signalée ⚠ (à vérifier à l'œil).
+    Qui agit : about_check (Contents/Helpers), lancé par l'app ;
+    macOS lui applique les autorisations de l'app qui le lance
+    (en Terminal : celles de Terminal). Les outils sont toujours
+    exécutés depuis l'app signée, jamais copiés dans le kit (en
+    Terminal : ceux de l'app installée, /Applications ou
+    ~/Applications ; une ancienne copie du kit est supprimée).
+    États affichés : Vérification… / Accordé / Non accordé /
+    Erreur de vérification. Coche verte seulement si macOS le
+    confirme (AXIsProcessTrusted, CGPreflightScreenCaptureAccess)
+    dans un nouveau processus de cet outil ; ouvrir les Réglages ou
+    afficher la demande ne compte jamais comme un accord.
+    Boutons : « Demander l'accès » (demande de macOS, uniquement
+    sur clic), « Ouvrir les Réglages » (rubrique correspondante),
+    « Revérifier ». Vérification aussi au lancement et au retour
+    dans l'app. Encore « Non accordé » après l'avoir coché dans
+    Réglages Système : « Relancer l'app ».
+    La carte affiche la signature de l'app : ad hoc = l'accès est
+    à redonner après chaque nouvelle version (voir section 1).
+    La base TCC de macOS n'est jamais modifiée, aucun vert forcé.
+  - Rosetta sur Mac Apple Silicon (bouton « Installer… », mot de
+    passe administrateur) pour le test Rosetta.
+  - Xcode Command Line Tools : FACULTATIFS. S'ils sont absents, le
+    test FAT utilise "file" et l'agrafage "codesign" (inclus dans
+    macOS) au lieu de "lipo" et "xcrun stapler".
+  - Test hors ligne automatique : option « Test sans Internet
+    automatique (pare-feu pf) », compte administrateur. Au début
+    de la checklist : une confirmation (bouton par défaut
+    « Passer »), puis le mot de passe administrateur dans la
+    fenêtre de macOS (jamais demandé ni stocké par l'outil). Un
+    garde système (net_guard.sh, lancé en root) bloque alors tout
+    le trafic par le pare-feu pf, uniquement pendant chaque test
+    sans Internet (5 min au plus), puis le rétablit. Seule l'ancre
+    com.apple/000.TestInstaller4D est remplie puis vidée : ni
+    interfaces, ni Wi-Fi, ni /etc/pf.conf ne sont modifiés. Le
+    trafic est rétabli à la fin de chaque test, à la fin de la
+    checklist, si l'app se ferme ou plante (le garde suit son
+    PID), au plus tard 5 min après le blocage, et au redémarrage.
+    Pendant un blocage, les sessions à distance (TeamViewer,
+    partage d'écran) sont coupées ; un antivirus (CrowdStrike)
+    peut journaliser l'activation de pf. Le consentement n'est
+    jamais mémorisé d'une checklist à l'autre.
+  - Sans l'option (ou refus, compte standard, pf.conf modifié) :
+    vous coupez le réseau vous-même quand l'outil le demande
+    (Wi-Fi, câble, VPN) ; la raison est notée dans le résultat.
+  - Accès Internet pour : le test GitHub, le test des liens du
+    ReadMe et le test "avec Internet".
+  - Le DMG 4D à tester, téléchargé depuis
+    https://product-download.4d.com/ (bouton « Télécharger dans le
+    navigateur » de l'app, connexion à votre compte 4D dans le
+    navigateur) ou par un lien direct *.4d.com.
+
+Premier lancement sur un autre Mac :
+  - version notarisée (certificat Developer ID) : double-clic ;
+  - version non notarisée : dans le Terminal, une seule fois,
+      bash "/Volumes/Test Installer 4D/install.sh"
+    (installe l'app dans /Applications et crée l'alias « Test
+    Installer 4D » sur le Bureau ; alias seul : install.sh
+    --desktop-alias ; un élément du Bureau du même nom qui n'est
+    pas un alias n'est jamais remplacé). La quarantaine de l'app
+    est conservée : au premier lancement, macOS peut bloquer une
+    app non notarisée. Dans ce cas : Réglages Système >
+    Confidentialité et sécurité > "Ouvrir quand même" (une seule
+    fois), puis rouvrir l'app ; install.sh affiche cette marche à
+    suivre. Une signature Developer ID avec notarisation supprime
+    cette étape. Une app construite sur ce Mac (build_dmg.sh) n'a
+    pas de quarantaine : pas d'alerte.
+  - Aucun attribut de quarantaine n'est jamais retiré (app, kit,
+    scripts d'installation, 4D, tests) et Gatekeeper n'est jamais
+    désactivé ; tests/test_quarantine.sh échoue si un retrait
+    réapparaît dans le projet.
+
+Pour la reconstruire ailleurs : copier le dossier TestInstaller4D
+puis lancer  bash macOS-app/build_dmg.sh  (Command Line Tools
+requis).
+
+
+---------------------------------------------------------------------
+3. COMMENT L'UTILISER
+---------------------------------------------------------------------
+1) Ouvrir "Test Installer 4D" (icône sur le Bureau ou dans
+   /Applications). Au lancement, le kit de scripts est copié dans
+   ~/TestInstaller4D (vos réglages et résultats sont conservés).
+
+2) Image disque 4D (carte « Image disque 4D ») :
+   - « Télécharger dans le navigateur » : ouvre
+     https://product-download.4d.com ; connectez-vous et téléchargez
+     dans le navigateur (l'outil ne demande ni n'enregistre aucun
+     mot de passe). Les DMG de ~/Downloads sont listés (origine,
+     taille, Complet / Incomplet / Vide / Invalide) ; seuls les
+     fichiers complets et non vides ont un bouton « Utiliser ».
+     « Complet » = fichier stable ET fin d'image disque (UDIF
+     « koly ») présente : un fichier tronqué est « Invalide ».
+     Rien n'est choisi à votre place.
+     Surveillance (roue + « Arrêter ») : affiche le téléchargement
+     en cours du navigateur (.crdownload Chrome, .part Firefox,
+     .download Safari) et sa taille reçue. Elle s'arrête d'elle-
+     même dès qu'une image complète apparaît : message vert
+     « Téléchargement terminé » avec « Utiliser cette image » et
+     « Fermer ». « Choisir… » ou « Utiliser » l'arrêtent aussi.
+     Dossier illisible (autorisation « Fichiers et dossiers »
+     > Téléchargements) : message rouge et « Réessayer ». Après
+     2 h sans image : message orange et « Relancer la
+     surveillance ». Jamais de roue sans explication.
+   - « Lien direct (serveurs *.4d.com) » : HTTPS uniquement ; chaque
+     redirection est contrôlée ; connexion requise = message
+     « Connexion requise dans le navigateur ».
+   - « Choisir… » : DMG déjà présent sur le Mac.
+   Chemin, taille et SHA-256 sont affichés et notés dans le journal.
+
+3) Produit testé : produit (4D, 4D Server, 4D Volume Desktop),
+   version, build. La plateforme n'est pas un choix : elle est
+   affichée en lecture seule, détectée sur le matériel du Mac de
+   test (Apple Silicon -> macOS ARM, Intel -> macOS Intel), même si
+   Test Installer 4D tourne sous Rosetta ; une ancienne valeur
+   enregistrée est ignorée. Détection impossible : erreur affichée,
+   checklist et installation bloquées. Le test « Execution in
+   'Rosetta' mode » reste distinct (Apple Silicon). Version
+   et build sont LUS DANS LE DMG (Info.plist : "21.2 build
+   21.100629" -> 21.2 / 100629). Produit absent du DMG ou valeur
+   différente : message rouge, aucune installation (jamais d'autre
+   version à la place). La version majeure (20, 21…) adapte les
+   tests (section 5).
+
+4) Installation (carte « Installation ») : dossier de destination
+   (/Applications par défaut, « Changer… »), puis « Installer et
+   vérifier » :
+   0. Toujours d'abord : contrôle de la fenêtre de l'image disque.
+      L'image est montée comme par un double-clic (un montage à vous
+      est réutilisé et laissé monté). Fichiers (volume nommé avec la
+      version, dossier "4D <version>" avec le produit, raccourci
+      Applications, ReadMe PDF, .DS_Store) PUIS fenêtre réellement
+      affichée par le Finder (titre, vue en icônes, éléments visibles
+      sans chevauchement, dossier à gauche d'Applications) et capture.
+      La fenêtre est comparée automatiquement à la référence 4D 21.2
+      (taille, vue, taille des icônes, positions à 4 pt, image de
+      fond) : identique -> conforme, l'installation démarre seule ;
+      différence -> non conforme, détail attendu/constaté. Échec, erreur ou autorisation
+      manquante (Automatisation > Finder, Enregistrement de l'écran)
+      : rien n'est installé. Refait à chaque clic ; effacé si l'image
+      ou la sélection change. Ligne du rapport « DMG window (before
+      installation) » avec la capture.
+   Puis :
+   intégrité de l'image (hdiutil verify), SHA-256, montage sans
+   fenêtre Finder, identification du produit attendu, espace
+   disque, copie de l'app et de ses ressources (dossier
+   "4D <version>", Components) avec ditto (signatures, permissions,
+   quarantaine conservées), puis vérification de la version, du
+   build, de la signature (même CDHash que dans le DMG) et
+   démontage. Une image montée par l'outil est toujours démontée,
+   même en cas d'échec ; une image déjà montée par vous reste
+   montée. Progression et erreurs précises (téléchargement
+   incomplet, montage impossible, espace insuffisant, copie
+   refusée, version incorrecte…). « Annuler » interrompt proprement.
+   Installation existante : rien n'est écrasé sans votre choix
+   (Remplacer / Utiliser l'existante, si même version et build /
+   Annuler). L'ancienne copie va à la Corbeille seulement après le
+   succès de la nouvelle. Dossier protégé : macOS demande un
+   administrateur dans sa propre fenêtre (aucun mot de passe
+   enregistré). Fiche : ~/4DQA_mac/install_state.tsv.
+
+5) Langues et tests :
+   - Langues testées : cocher EN, FR, DE, CS (tchèque), JA ; elles
+     sont testées à la suite, sans intervention.
+   - Test témoin (dossier Components renommé) : recommandé.
+   - Test sans Internet automatique (pare-feu pf) (facultatif) :
+     voir section 2 ; décochée, vous coupez le réseau quand
+     l'outil le demande.
+   - Composants depuis GitHub : uniquement 4D 21 et + (grisé en 20).
+   - Plugin 4D Internet Commands de référence : toujours testé
+     (plugin 20.9 figé dans le kit, plus mis à jour par 4D).
+   - Zips I.C. supplémentaires : facultatif, pour tester d'autres
+     versions du plugin.
+
+6) Cliquer « Lancer la checklist ». Le journal défile en direct.
+   Avec l'option pare-feu pf : une seule confirmation et le mot
+   de passe administrateur au début, puis tout est automatique,
+   y compris le test sans Internet de chaque langue. Sans
+   l'option : une confirmation explicite est demandée juste
+   avant le test hors ligne de chaque langue, puis vous coupez
+   le réseau. Le bouton par défaut est « Passer » ; sans réponse
+   sous 2 minutes, le test est « Non exécuté ».
+   Rosetta absent : proposition d'installation.
+   L'écran et le Mac restent allumés pendant le test (caffeinate).
+
+7) Résultats : statuts OK / Échec / À vérifier / Non exécuté /
+   Action requise / Indéterminé / N/A, chacun avec son icône, sa
+   couleur et son libellé ; seul OK est une réussite. Chaque ligne
+   indique la date, le produit testé, le chemin testé et la preuve
+   ou la raison. Les échecs et contrôles non conclus affichent
+   tout le diagnostic et le chemin sans clic supplémentaire ;
+   les réussites restent repliables. Sélecteur de langue
+   au-dessus du tableau quand plusieurs langues sont testées.
+   Changer de produit, de version, de build, de plateforme ou
+   d'image, ou réinstaller : les résultats affichés devenus
+   obsolètes sont effacés (message « Résultats effacés »).
+   - « Rapport » : ouvre le rapport HTML (une colonne par langue,
+     capture de la boîte « À propos » de chaque langue). Les
+     diagnostics non réussis y sont ouverts par défaut ; le
+     statut Échec reste explicite dans le tableau récapitulatif.
+   - « Dossier » : ouvre ~/TestInstaller4D.
+
+Interface : couleurs vives et contrastées, mode clair et sombre
+(suivant macOS), mise en page adaptée à la largeur (deux colonnes
+en fenêtre large, sinon onglets Préparation / Résultats / Journal),
+animations désactivées avec « Réduire les animations » (Réglages
+Système > Accessibilité > Affichage).
+L'icône de l'app (paquet « 4D », flèche de téléchargement, coche
+verte, sur le dégradé indigo > violet > rose > orange) est aussi
+affichée dans le bandeau du haut : au lancement, la flèche tombe
+dans le paquet puis la coche apparaît ; pendant une opération
+longue, la flèche flotte doucement. Avec « Réduire les
+animations » : icône fixe. Elle est décorative : les statuts
+restent donnés par les textes et pastilles.
+Dans le Dock, l'app ouverte affiche sa propre icône (lue dans
+son paquet au lancement, une seule fois, sans animation), même si
+le Dock a gardé en cache l'icône d'une ancienne copie.
+Après une mise à jour, le Finder peut montrer l'ancienne icône
+quelques instants (cache de macOS) : fermer puis rouvrir la
+fenêtre du Finder. Les anciennes copies (Corbeille, image disque
+montée) portent le même identifiant : vider la Corbeille les
+supprime. build_dmg.sh désinscrit sa copie temporaire de
+LaunchServices.
+
+Changer de langue (sans déconnexion) :
+   4D prend sa langue dans celle de macOS. L'application lance 4D
+   dans la langue testée grâce à la « langue par application » de
+   macOS (Réglages Système > Général > Langue et région >
+   Applications) : AppleLanguages et AppleLocale sont écrits pour
+   l'app 4D seulement (com.4D.4D, com.4D.4DServer…), sans toucher
+   à la langue de macOS. Aucune déconnexion. Les réglages
+   d'origine de 4D sont restaurés à la fin de chaque langue (et au
+   lancement suivant si le test a été interrompu).
+   Preuve dans le rapport : la langue réellement utilisée par 4D
+   (Get database localization) et la boîte « À propos » lue dans
+   la langue testée.
+
+
+---------------------------------------------------------------------
+4. DÉTAIL DE CHAQUE TEST
+---------------------------------------------------------------------
+Légende : ✅ OK (seule réussite)  ❌ Échec (détail donné)
+          ⚠️ À vérifier à la main  ⏭ Non exécuté (raison donnée)
+          ✋ Action requise (ce qu'il faut faire)
+          ? Indéterminé (pas de preuve exploitable)
+          N/A non applicable (raison donnée)
+
+1. Operating system version used
+   Relève la version exacte de macOS (sw_vers) et l'architecture
+   (arm64 / x86_64). Ex. : macOS 27.0.1 (26A434) arm64.
+   Indique aussi la langue de macOS (inchangée) et la langue dans
+   laquelle 4D est lancé (langue par application).
+
+2. The download
+   Vérifie que le DMG existe et n'est pas vide, calcule sa taille
+   et son empreinte SHA-256, et contrôle son intégrité avec
+   "hdiutil verify".
+
+3. The installer Editor
+   Vérifie la signature de code de 4D.app (codesign) :
+   - l'éditeur doit être 4D SAS. Sur Mac, Apple l'affiche sous la
+     forme "Developer ID Application: 4D (37UG5W39Z2)" ; ce
+     Team ID est accepté comme 4D SAS ;
+   - "codesign --verify --deep --strict" doit passer ;
+   - affiche aussi la signature du DMG.
+
+4. Version number
+   - Lit la version dans Info.plist (CFBundleShortVersionString,
+     CFBundleVersion) : la version saisie doit y figurer.
+     Convention 4D : CFBundleVersion ajoute toujours un 0 après la
+     version majeure (21.0.1 = 21.1, 21.0.2 = 21.2) ; ce n est pas
+     un bug, la conversion est faite automatiquement dans les
+     deux champs, la version attendue, le DMG et l'OCR.
+     Cela vaut pour toutes les builds. Les autres composants
+     et les suffixes R/HF ne sont pas supprimés ; un build
+     différent reste une erreur.
+     Versions R : "21 R5 build 21R5.100123" avec CFBundleVersion
+     21.5.0 est voulu (M RN = M.N.0, toutes versions majeures) ;
+     le build lu est 100123. 21.6.0, 21.5.1 ou 21.0.5 pour
+     21 R5 restent des incohérences.
+     La version saisie doit être exacte (21.2, pas 21) et les deux
+     champs de l Info.plist doivent concorder.
+   - Version et build attendus : lus dans le DMG si non saisis.
+   - Lance 4D et récupère "Application version", le numéro de
+     build (doit être égal au build attendu) et la langue de 4D
+     (doit être la langue testée).
+   - Boîte « À propos » (automatique) : 4D est lancé, le premier
+     article du menu de l'application (« À propos de 4D… », quelle
+     que soit la langue) est activé par l'Accessibilité, la fenêtre
+     est capturée puis lue par OCR. Elle doit afficher la version
+     et le build attendus, et être dans la langue testée : titre de
+     la fenêtre et textes comparés au fichier About<LANGUE>.xlf de
+     4D. La capture est jointe au rapport.
+     ⚠️ seulement si l'automatisation est impossible (autorisations
+     manquantes, contenu non affiché) : vérifier la capture à l'œil.
+
+5. "Components" folder
+   Compare le dossier Components du DMG à la liste attendue :
+   - 4D 21 et + (comps.txt, 7 composants) : 4D AIKit, 4D NetKit,
+     4D Progress, 4D SVG, 4D ViewPro, 4D Widgets,
+     4D WritePro Interface ;
+   - 4D 20 (comps_20.txt, 6 composants) : les mêmes sans AIKit,
+     lus dans 4D.app/Contents/Components.
+   Affiche le nombre attendu et observé, les noms manquants et
+   inattendus, la référence utilisée, le chemin et l'action à
+   vérifier. Exemple : 8 au lieu de 6, aucun manquant et les
+   deux entrées supplémentaires nommées. Un remplacement est
+   détecté même à nombre égal ; un dossier absent, vide ou
+   illisible n'est jamais annoncé comme réussi.
+
+6. No more plugins provided
+   - 4D 21 et + : aucun dossier Plugins ni plugin livré dans le DMG
+     ou l'app, et la commande 4D PLUGIN LIST doit renvoyer 0.
+   - 4D 20 : N/A (les plugins étaient encore livrés).
+
+7. Download last 4D I.C.
+   Copie le plugin 4D Internet Commands de référence (ic_fixed,
+   version 20.9 / build 20.102090, le dernier publié) dans un
+   projet de test, lance 4D et vérifie :
+   - que le plugin apparaît dans PLUGIN LIST ;
+   - que IT_SetTimeOut(30) s'exécute sans erreur.
+   Fait de même pour chaque zip I.C. supplémentaire ajouté.
+
+8. Load of components
+   Trois vérifications dans des projets 4D vierges :
+   a) Local : les composants livrés, placés dans 4D.app, doivent
+      tous se charger, et les tests passent (SVG_New, Progress New,
+      classes NetKit et AIKit, VP Font to object). Les nombres,
+      noms manquants et étapes de diagnostic sont affichés.
+      Les composants supplémentaires restent autorisés et
+      sont nommés, notamment les composants intégrés à 4D.
+   b) Témoin : dossier Components renommé, il ne doit rester que
+      4D Labels et 4D Report (prouve que le test (a) utilise bien
+      les composants livrés).
+   c) GitHub (4D 21 et + seulement) : dependencies.json avec
+      "version":"4d" ("suivre la version de 4D"). Les 7 composants
+      sont téléchargés depuis github.com/4d, doivent se charger et
+      passer les tests. Les tags résolus (dependencies-lock.json)
+      sont affichés. En 4D 20 : N/A (fonction inexistante).
+      Erreurs passagères : jusqu'à 3 essais. Entre deux essais,
+      l'état de l'API GitHub est vérifié (quota de 60 requêtes par
+      heure et par adresse IP) : quota épuisé -> attente de sa
+      remise à zéro (15 min max). Si GitHub reste inaccessible ou
+      sans quota : ⚠️ (problème GitHub passager, à relancer plus
+      tard) au lieu de ❌. ❌ seulement si GitHub répond et que les
+      composants échouent encore. Les erreurs du cache.log de 4D
+      sont jointes.
+
+9. Check if FAT application
+   "lipo -archs" sur le binaire 4D (ou "file" sans les Command
+   Line Tools) : doit afficher x86_64 ET arm64 (application
+   universelle Intel + Apple Silicon).
+
+9 bis. DMG window (before installation)
+   Relit ~/4DQA_mac/dmg_window.tsv : seulement pour la même image
+   (chemin, taille, date), le même produit, version et build.
+   Identique à la fenêtre de référence (21.2) -> ✅ ; ancien
+   résultat en attente -> ⚠️ À vérifier ; non conforme -> ❌ ; autorisation
+   manquante -> ✋ ; absent ou périmé -> ⏭️ Non exécuté. La capture
+   est jointe au rapport.
+
+10. Installation et lancement de 4D (quatre lignes distinctes)
+    a) Installation of 4D : relit la fiche de « Installer et
+       vérifier » (~/4DQA_mac/install_state.tsv). OK seulement si
+       l'installation a réussi pour CE DMG (même SHA-256) et pour
+       le produit, la version, le build et la plateforme
+       sélectionnés, et si l'app installée est toujours là, avec la
+       même version et la même signature (codesign, CDHash).
+       App disparue ou modifiée depuis : « Échec ». Pas
+       d'installation, autre DMG, autre version : « Non exécuté » ;
+       installation existante à confirmer : « Action requise ». Le
+       test sans Internet n'est alors pas exécuté.
+    b) Execution of application (without Internet), en premier :
+       - tout est préparé avant la coupure (projet de test local
+         QA_Exec copié) ;
+       - avec l'option pare-feu pf (accord donné au début de la
+         checklist), le garde bloque le trafic juste avant ce test
+         et le rétablit juste après (méthode notée : « pf
+         firewall… ») ; sinon l'outil demande votre accord puis
+         vous demande de couper le réseau (Wi-Fi, câble, VPN) ;
+       - avec pf, la route par défaut reste présente : l'absence
+         d'Internet est établie par l'échec des sondes HTTPS et
+         TCP ;
+       - absence d'Internet vérifiée AVANT et APRÈS le lancement par
+         plusieurs sondes indépendantes (HTTPS par nom, TCP par
+         adresse IP, DNS, route par défaut) ; la méthode et les
+         résultats sont notés ; un seul échec HTTP ne suffit pas ;
+       - lancement EXACT de l'app installée (open, Gatekeeper
+         l'évalue comme au premier lancement) avec un jeton unique ;
+         preuve de démarrage = fichier qa_result.txt écrit par 4D
+         (chemin de l'app et jeton). La réussite de la commande de
+         lancement ne prouve rien ;
+       - délai maximal 180 s ; plantage (rapport de plantage),
+         blocage (délai dépassé), dialogue empêchant le démarrage
+         et erreur du banc de test sont distingués ;
+       - seuls les processus lancés par le test sont arrêtés, par
+         leur PID (jamais par leur nom) ;
+       - réseau encore actif, refus, action manuelle manquante :
+         « Non exécuté » ou « Action requise » ; preuve absente ou
+         Internet revenu pendant le test : « Indéterminé ». Jamais
+         OK sans preuve ;
+       - effet de cache possible signalé (app déjà approuvée, même
+         code déjà lancé avec Internet, DMG ouvert sur ce Mac).
+    c) Notarization ticket (stapling) : contrôle statique du ticket
+       agrafé sur l'app ou, à défaut, sur le DMG (cas normal chez
+       4D) : xcrun stapler validate, ou "Notarization
+       Ticket=stapled" de codesign sans les Command Line Tools.
+       Ne vaut jamais lancement hors ligne réussi.
+    d) Execution of application (with Internet) : spctl doit
+       accepter l'app du DMG comme "Notarized Developer ID", puis
+       une copie neuve de l'app du DMG, avec attribut de quarantaine
+       (comme téléchargée), est lancée réellement (même preuve de
+       démarrage, même délai). Sans Internet à ce moment :
+       « Non exécuté ».
+    - L'alerte macOS « “4D” est une app téléchargée depuis
+      Internet… » est validée automatiquement (bouton par défaut
+      « Ouvrir », par l'Accessibilité) ; son texte est noté. Sans
+      Accessibilité : « Action requise ».
+    Gatekeeper n'est jamais désactivé, la quarantaine de l'app
+    testée n'est jamais retirée et l'app n'est pas modifiée.
+    Copie de test (composants, About, langues, plugins, I.C.,
+    Rosetta) : créée depuis l'image montée sans quarantaine
+    (ditto --noqtn), car les Components ajoutés dedans modifient
+    son sceau et Gatekeeper la refuserait. La copie neuve du test
+    Gatekeeper (d) et l'app installée gardent leur quarantaine.
+
+11. Execution in 'Rosetta' mode (Mac Apple Silicon uniquement)
+    - Rosetta non installé : bouton « Installer… » du panneau
+      Prérequis, ou proposition pendant le test (mot de passe
+      administrateur). Sans Rosetta, 4D ne peut pas démarrer en
+      Intel et le test est ❌.
+    - Rosetta installé : 4D est lancé automatiquement en mode Intel
+      par LaunchServices (open --arch x86_64, identique à la case
+      « Ouvrir avec Rosetta » du Finder), sans intervention. En
+      secours : lancement direct avec arch -x86_64.
+    Le script vérifie que le processus 4D tournait vraiment sous
+    Rosetta (indicateur "translated" du processus) et sans
+    plantage. Mac Intel : N/A.
+
+12. ReadMe (analyse automatique)
+    Lit le ReadMe.pdf du DMG (multilingue : EN, FR, ES, DE, JA, PT,
+    CS) et vérifie :
+    - présence des 7 langues, dont la langue testée ;
+    - version : seule "4D <majeure>" est citée, dans chaque langue ;
+    - plateforme : "macOS" présent, "Windows" absent ;
+    - plugins : Internet Commands n'est mentionné que s'il est livré ;
+    - liens : chaque langue a les mêmes liens que l'anglais, et
+      chaque lien répond (code HTTP affiché, ex. 200 ; un lien en
+      erreur est relancé une fois avant de conclure) ;
+    - une adresse e-mail @4d.com dans chaque langue ;
+    - mots anglais oubliés dans FR/ES/DE/PT/CS (ex. "sur le to") ;
+    - phrases entières non traduites ;
+    - caractères mal encodés, marqueurs TODO / XXX ;
+    - orthographe de la langue testée (correcteur macOS ; pas de
+      correcteur pour le japonais).
+    Un défaut dans la langue testée donne ❌. Dans une autre langue,
+    il est signalé ⚠ sans faire échouer le test.
+    Mot correct signalé à tort : l'ajouter (une ligne par mot) dans
+    ~/TestInstaller4D/readme_words.txt (et dans
+    macOS/readme_words.txt du dossier source pour le garder).
+
+
+---------------------------------------------------------------------
+5. DIFFÉRENCES 4D 20 / 4D 21
+---------------------------------------------------------------------
+                         4D 20                 4D 21 et +
+Composants attendus      6 (sans AIKit)        7
+Plugins livrés           oui (N/A)             aucun attendu
+Composants GitHub        N/A                   testé
+Test AIKit               retiré                testé
+Dossier de l'app         "4D 20.x/4D.app"      "4D 21.x/4D.app"
+
+
+---------------------------------------------------------------------
+6. OÙ SONT LES FICHIERS
+---------------------------------------------------------------------
+~/TestInstaller4D/kit.conf               derniers réglages saisis
+~/TestInstaller4D/qa_mac_results.tsv     résultats du dernier test
+~/TestInstaller4D/results/               résultats par langue
+    <version>_<build>_<LANGUE>.tsv
+    rapport_<version>_<build>.html / .md (rapport final)
+~/TestInstaller4D/results/<version>_<build>_<LANGUE>_about.png
+                                         capture de la boîte À propos
+~/4DQA_mac/<version>_<build>/            copies de travail de 4D.app
+                                         et projets de test (avec
+                                         qa_result.txt de chaque test,
+                                         about_<LANGUE>.txt = lecture
+                                         de la boîte À propos)
+~/4DQA_mac/install_state.tsv            fiche de la dernière
+                                         installation : DMG, taille,
+                                         SHA-256, produit, version,
+                                         build, app installée,
+                                         CDHash, quarantaine, erreur
+~/4DQA_mac/assessed_<CDHash>             date du dernier lancement
+                                         avec Internet de ce code
+                                         (effet de cache signalé)
+~/Downloads/                             DMG téléchargés (navigateur
+                                         ou lien direct *.4d.com)
+Test Installer 4D.app/Contents/Helpers/  about_check, readme_check
+                                         (outils signés de l'app)
+/var/run/com.4d.ti4d.netguard/           garde réseau (root) : state,
+                                         token pf, daemon.log ;
+                                         effacé au redémarrage
+~/4DQA_mac/netguard_request              demandes de l'outil au garde
+                                         (bloquer / rétablir / quitter)
+~/4DQA_mac/net_disabled.txt              services réseau coupés par une
+                                         ancienne version (restaurés
+                                         par --recover)
+~/4DQA_mac/applang_<id 4D>.txt           langue d'origine de 4D
+                                         (restaurée automatiquement)
+~/TestInstaller4D/ic/                    zips I.C. supplémentaires
+~/Library/Logs/DiagnosticReports         rapports de plantage macOS
+
+Sans interface : le moteur peut aussi se lancer dans le Terminal :
+    bash ~/TestInstaller4D/qa_mac.sh FR
+    bash ~/TestInstaller4D/qa_mac.sh --recover   (réseau + langue 4D
+                                         après une interruption)
+    sudo pfctl -a com.apple/000.TestInstaller4D -F rules
+                                         (secours : trafic resté
+                                         bloqué par le garde)
+    bash ~/TestInstaller4D/"Test Installer 4D.command" (questions,
+                                         plusieurs langues à la suite ;
+                                         lancé par bash, il n'est pas
+                                         évalué par Gatekeeper)
+
+
+---------------------------------------------------------------------
+7. CAUSES D'ÉCHEC FRÉQUENTES
+---------------------------------------------------------------------
+- Version / build modifiés à la main et différents du DMG ->
+  "Version number" ❌ (laisser les valeurs lues dans le DMG).
+- Accessibilité / Enregistrement de l'écran non autorisés (ou à
+  réactiver après une nouvelle version de l'app) -> boîte « À
+  propos » ⚠️ et alerte Gatekeeper à valider à la main.
+- Écran verrouillé pendant le test -> boîte « À propos » ⚠️
+  (contenu non affiché) : la capture est jointe.
+- Coupure automatique (pf) avec un compte non administrateur,
+  mot de passe refusé, /etc/pf.conf modifié (ancre com.apple/*
+  absente) ou garde arrêté -> coupure manuelle demandée (raison
+  notée) ; si personne ne coupe le réseau : ✋ Action requise.
+- Blocage pf contourné (VPN ou filtre réseau prioritaire,
+  antivirus) -> Internet encore joignable : ✋ Action requise,
+  jamais OK.
+- Internet encore joignable au test hors ligne (Wi-Fi, câble, VPN,
+  partage de connexion) -> ✋ Action requise.
+- 4D non installé par l'outil, ou installé depuis un autre DMG ou
+  une autre version -> "Installation of 4D" et test sans Internet
+  ⏭ : « Installer et vérifier ». Installation existante -> ✋ :
+  Remplacer ou Utiliser l'existante.
+- Espace disque insuffisant, dossier protégé refusé, image
+  illisible -> message précis de l'installation, rien d'installé.
+- App signée ad hoc (pas de certificat) -> Accessibilité /
+  Enregistrement de l'écran « Non accordé » après chaque nouvelle
+  version : les redonner, ou signer avec une identité stable
+  (section 1).
+- Rosetta absent -> "Rosetta" ❌ (bouton « Installer… »).
+- GitHub inaccessible ou quota d'API épuisé -> ⚠️ après 3 essais :
+  relancer plus tard.
+- Une boîte de dialogue 4D ou macOS empêche le démarrage -> ❌
+  (texte noté), ou ✋ si elle ne peut être lue faute
+  d'Accessibilité. Aucune preuve de démarrage dans le délai -> ❌
+  (blocage). Erreur du banc de test -> ? Indéterminé.

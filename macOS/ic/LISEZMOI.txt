@@ -1,0 +1,2 @@
+Le plugin 4D Internet Commands de référence (issu de 4D 20.9, dernière version : le plugin n'est plus mis à jour) est dans macOS/ic_fixed/ et il est toujours testé.
+Optionnel : déposez ici d'autres zips 4D Internet Commands à tester en plus.

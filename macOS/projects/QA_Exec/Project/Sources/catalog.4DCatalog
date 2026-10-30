@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE base SYSTEM "http://www.4d.com/dtd/2007/base.dtd" >
+<base name="QA_Exec" uuid="7E50179806DE47C0B38AF1B76C9F7737" collation_locale="en">
+	<schema name="DEFAULT_SCHEMA"/>
+</base>

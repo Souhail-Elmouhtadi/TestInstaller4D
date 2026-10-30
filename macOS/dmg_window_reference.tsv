@@ -1,0 +1,12 @@
+# Reference window of the 4D installer disk image: captured on "4D 21.2 Release" (4D 21.2 LTS Mac, 2026-10-30)
+# and used for every version (the version itself is checked against the selection, never against 21.2).
+SOURCE	4D 21.2 Release (4D 21.2 LTS Mac (2).dmg), 2026-10-30
+WINDOW	600x450
+VIEW	icon view
+ICONSIZE	128
+TOOLBAR	false
+POS_FOLDER	140,145
+POS_APPLICATIONS	460,145
+POS_README	300,325
+BACKGROUND_SHA256	f40c92523b18c005f29d826594d95f5f597bff1194d237bb35223c5f7d090b01
+TOLERANCE	4

@@ -1,0 +1,129 @@
+Test Installer 4D 3.4 - checklist de release 4D (sans IA)
+==========================================================
+Application macOS "Test Installer 4D" (ou "Test Installer 4D.command" en Terminal) : checklist de release 4D sur Mac.
+
+Installation de l'application (DMG TestInstaller4D.dmg)
+- Version notarisée (construite avec un certificat Developer ID) : glisser l'app dans Applications, double-clic.
+- Version non notarisée : dans le Terminal, une seule fois :
+      bash "/Volumes/Test Installer 4D/install.sh"
+  (copie l'app dans /Applications, crée l'alias "Test Installer 4D" sur le Bureau et l'ouvre). La quarantaine de
+  l'app est conservée : au premier lancement, macOS peut bloquer une app non notarisée. Dans ce cas : Réglages
+  Système > Confidentialité et sécurité > "Ouvrir quand même" (une seule fois), puis rouvrir l'app ; install.sh
+  affiche cette marche à suivre. Une signature Developer ID avec notarisation supprime cette étape. Une app
+  construite sur ce Mac (build_dmg.sh) n'a pas de quarantaine : pas d'alerte.
+  Aucun attribut de quarantaine n'est jamais retiré (app, kit, scripts, 4D) et Gatekeeper n'est jamais désactivé.
+  Alias du Bureau seul :  bash "/Volumes/Test Installer 4D/install.sh" --desktop-alias
+  (un alias existant est remplacé ; un autre élément nommé "Test Installer 4D" n'est jamais touché).
+
+Autorisations macOS (carte "Autorisations macOS")
+- Accessibilité et Enregistrement de l'écran servent à lire la boîte "À propos" de 4D et à valider l'alerte
+  Gatekeeper. Les actions sont faites par les outils de l'app (Contents/Helpers) lancés par l'app : macOS
+  applique donc les autorisations de "Test Installer 4D". Ces outils sont toujours exécutés depuis l'app signée,
+  jamais copiés (en Terminal : ceux de l'app installée, /Applications ou ~/Applications).
+- États : Vérification… / Accordé (coche verte) / Non accordé / Erreur de vérification. La coche verte n'apparaît
+  que si macOS le confirme (AXIsProcessTrusted, CGPreflightScreenCaptureAccess) dans un nouveau processus de l'outil.
+  Ouvrir les Réglages ou afficher une demande n'est jamais compté comme un accord.
+- "Demander l'accès" affiche la demande de macOS (uniquement sur clic) ; "Ouvrir les Réglages" ouvre la rubrique ;
+  "Revérifier" interroge à nouveau macOS. Vérification aussi au lancement et au retour dans l'app.
+- Toujours "Non accordé" après l'avoir coché : "Relancer l'app" (l'Enregistrement de l'écran ne s'applique
+  souvent qu'après une relance).
+- Signature : affichée dans la carte. Signature ad hoc = macOS identifie l'app par son empreinte, chaque nouvelle
+  version est une nouvelle app (autorisation à redonner). Pour une identité stable sur ce Mac :
+      bash macOS-app/make_signing_identity.sh   puis   bash macOS-app/build_dmg.sh
+  (certificat local "TestInstaller4D Local Signing" ; aucun mot de passe enregistré). Developer ID recommandé.
+  La base TCC de macOS n'est jamais modifiée.
+
+macOS - utilisation
+1. Image disque 4D (carte "Image disque 4D") :
+   - "Télécharger dans le navigateur" ouvre https://product-download.4d.com : connectez-vous dans le navigateur
+     (l'outil ne demande ni n'enregistre aucun mot de passe). Les DMG de ~/Downloads sont détectés ; seuls les
+     fichiers complets et non vides sont utilisables ("Utiliser"). Complet = fichier stable et fin d'image
+     disque (UDIF "koly") présente ; un fichier tronqué est "Invalide". Aucun DMG n'est choisi à votre place.
+     La surveillance montre le téléchargement en cours (.crdownload, .part, .download) et s'arrête d'elle-même
+     dès qu'une image complète apparaît ("Téléchargement terminé" + "Utiliser cette image") ; "Choisir…" ou
+     "Utiliser" l'arrêtent aussi. Dossier illisible : message + "Réessayer" ; après 2 h : "Relancer".
+   - "Lien direct (serveurs *.4d.com)" : HTTPS uniquement, chaque redirection est contrôlée.
+   - "Choisir…" : un DMG déjà présent. Chemin, taille et SHA-256 sont affichés et notés dans le journal et dans
+     la fiche d'installation (~/4DQA_mac/install_state.tsv).
+   - Produit, version et build sont lus dans le DMG ; une valeur différente est signalée et rien
+     n'est installé (jamais d'autre version à la place).
+   - Plateforme : non modifiable, détectée sur le matériel du Mac de test (Apple Silicon -> macOS ARM,
+     Intel -> macOS Intel), y compris si l'app tourne sous Rosetta ; jamais reprise d'une configuration
+     enregistrée. Échec de détection : erreur affichée, checklist et installation bloquées. Elle est utilisée
+     telle quelle pour l'installation, la checklist et le rapport ; le test Rosetta de 4D reste séparé.
+2. "Installer et vérifier" commence TOUJOURS par le contrôle de la fenêtre de l'image disque (dmg_window.sh) :
+   l'image est montée comme par un double-clic (une image déjà montée par vous est réutilisée et reste montée),
+   puis sont vérifiés séparément :
+   - les fichiers : nom du volume avec la version choisie, dossier "4D <version>" contenant le produit,
+     raccourci Applications -> /Applications, ReadMe (PDF), disposition enregistrée (.DS_Store) ;
+   - la fenêtre réellement affichée par le Finder : titre = nom du volume, présentation en icônes, dossier produit,
+     Applications et ReadMe visibles dans la fenêtre sans chevauchement, dossier à gauche d'Applications sur la
+     même ligne (glisser pour installer) ; une capture de la fenêtre est prise (~/4DQA_mac/dmg_window.png).
+   Les fichiers seuls ne prouvent rien : la fenêtre est ensuite comparée AUTOMATIQUEMENT à la fenêtre de référence
+   relevée sur "4D 21.2 Release" (macOS/dmg_window_reference.tsv, capture dmg_window_reference.png) : fenêtre
+   600x450, vue en icônes 128 pt sans barre d'outils, dossier produit (140,145), Applications (460,145), ReadMe
+   (300,325) à 4 pt près, même image de fond (SHA-256). La version, elle, est toujours celle choisie (jamais 21.2
+   en dur). Identique -> "Conforme" et l'installation démarre seule, sans confirmation ; la moindre différence ->
+   "Non conforme" avec valeur attendue / constatée. Le raccourci Applications peut être un lien ou un alias Finder.
+   Non conforme, image d'une autre version ou erreur : l'installation n'est pas lancée. Le Finder doit être
+   autorisé dans Réglages Système > Confidentialité et sécurité > Automatisation > Finder (demande de macOS au
+   premier contrôle) et l'Enregistrement de l'écran est nécessaire à la capture ; sinon "Action requise".
+   Le contrôle est refait à chaque clic et effacé si l'image, le produit, la version ou le build changent.
+   Le résultat et la capture figurent dans le rapport (ligne "DMG window (before installation)", juste après
+   "The download"). Ensuite l'installation monte l'image (sans navigateur Finder), copie l'app et ses ressources (dossier
+   "4D <version>", Components) en conservant signatures, permissions et quarantaine, vérifie version, build et
+   signature, puis démonte l'image (aussi en cas d'échec ; une image déjà montée par vous reste montée).
+   Installation existante : confirmation (Remplacer / Utiliser l'existante si même version / Annuler) ; l'ancienne
+   copie va à la Corbeille seulement après succès. Dossier protégé : macOS demande un administrateur.
+   Erreurs précises : téléchargement incomplet, montage impossible, espace insuffisant, copie refusée, version
+   incorrecte…
+3. Cochez les langues (EN FR DE CS JA) puis "Lancer la checklist". Lancement de 4D, trois lignes distinctes :
+   - Execution of application (without Internet) : l'app installée est lancée avec un projet de test local ; vert
+     seulement si 4D écrit sa preuve de démarrage alors que l'absence d'Internet est vérifiée avant et après par
+     plusieurs sondes (HTTPS, TCP par adresse IP, DNS, route par défaut ; méthode notée dans le résultat).
+     Option "Test sans Internet automatique (pare-feu pf)" (compte administrateur) : au début de la checklist,
+     une confirmation puis le mot de passe administrateur dans la fenêtre de macOS (jamais stocké). Un garde
+     système bloque alors tout le trafic (règles pf dans l'ancre com.apple/000.TestInstaller4D, rien d'autre
+     modifié : ni interfaces, ni Wi-Fi, ni pf.conf) uniquement pendant chaque test sans Internet (5 min au plus)
+     et le rétablit aussitôt après, ainsi qu'à la fin de la checklist, si l'app se ferme ou plante, et au
+     redémarrage. Les sessions à distance (TeamViewer, partage d'écran) sont coupées pendant ces blocages.
+     Option décochée, refusée ou indisponible : c'est vous qui coupez le réseau quand l'outil le demande
+     (raison notée dans le résultat).
+     Réseau encore actif, refus, dialogue bloquant, preuve absente : Non exécuté / Action requise / Indéterminé,
+     jamais OK. Plantage, blocage (délai dépassé) et dialogue sont distingués ; seuls les processus lancés par le
+     test sont arrêtés (par PID). Un effet de cache possible (lancement antérieur, quarantaine) est signalé.
+   - Notarization ticket (stapling) : contrôle statique (stapler / codesign) ; ne vaut jamais lancement hors ligne.
+   - Execution of application (with Internet) : évaluation Gatekeeper en ligne (spctl), puis lancement réel d'une
+     copie neuve de l'app du DMG avec quarantaine (comme téléchargée), même preuve de démarrage.
+   Gatekeeper n'est jamais désactivé, la quarantaine de 4D n'est jamais retirée, l'app testée n'est pas modifiée.
+   Copie de test (composants, About, langues, plugins, I.C., Rosetta) : créée depuis l'image montée sans
+   quarantaine (ditto --noqtn), car les Components ajoutés dedans modifient son sceau et Gatekeeper la refuserait ;
+   la copie neuve du test Gatekeeper et l'app installée gardent leur quarantaine.
+   En Terminal : double-clic sur "Test Installer 4D.command", ou, si macOS le bloque (fichier téléchargé) :
+   bash "Test Installer 4D.command" (un script lancé par bash n'est pas évalué par Gatekeeper).
+4. Résultats : chaque ligne a statut, date, produit, chemin testé et preuve ou raison. Changer de produit, de
+   version, de build, de plateforme ou d'image, ou réinstaller, efface les résultats affichés devenus obsolètes.
+   Les diagnostics des échecs et des contrôles non conclus restent visibles intégralement, avec le chemin testé,
+   dans l'app et dans les détails ouverts du rapport HTML. Le statut global est conservé.
+   Composants : nombre attendu/observé, noms manquants et inattendus, référence utilisée et action à effectuer
+   (par exemple 8 au lieu de 6 : les deux entrées supplémentaires sont nommées). Une substitution est signalée
+   même si le nombre est correct. La référence dépend de la version : 6 en 4D 20, 7 à partir de 4D 21.
+   Le contrôle du chargement vérifie les composants requis ; les composants supplémentaires, dont les composants
+   intégrés à 4D, sont nommés mais restent autorisés comme auparavant. Les plugins et les architectures
+   incorrectes indiquent également l'attendu, l'observé et la correction à vérifier.
+   Rapport : results/rapport_<version>_<build>.html (+ .md), une colonne par langue, capture de la boîte "À propos".
+5. Après une exécution interrompue, le réseau et la langue de 4D sont restaurés au lancement suivant
+   (ou : bash qa_mac.sh --recover). Secours si le trafic restait bloqué :
+   sudo pfctl -a com.apple/000.TestInstaller4D -F rules
+
+Interface : couleurs vives, mode clair et sombre (suivant macOS), mise en page adaptée à la largeur de la fenêtre
+(deux colonnes, ou onglets Préparation / Résultats / Journal), animations désactivées si "Réduire les animations"
+est activé. Chaque statut garde son icône, sa couleur et son libellé.
+Icône de l'app : un paquet "4D" qui reçoit une flèche de téléchargement, avec une coche verte, sur le dégradé
+indigo > violet > rose > orange. Elle s'affiche aussi dans le bandeau du haut : au lancement la flèche tombe dans le
+paquet puis la coche apparaît ; pendant une opération longue la flèche flotte. Avec "Réduire les animations" : icône
+fixe, sans animation. Source unique : macOS-app/AppIconArt.swift ; après une modification, régénérer
+macOS-app/AppIcon.icns avec  bash macOS-app/icon/make_icon.sh  (toutes les tailles, de 16 à 1024 px).
+Dock : l'app ouverte affiche toujours sa propre icône (celle de son paquet, posée une fois au lancement, sans
+animation), même si le Dock a gardé en cache celle d'une ancienne copie. Les anciennes copies (Corbeille, image
+disque) restent connues de macOS tant qu'elles existent : vider la Corbeille les supprime.
